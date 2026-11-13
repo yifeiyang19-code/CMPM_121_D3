@@ -1,4 +1,5 @@
 import {
+  ENTRY_REQUIRES,
   type GameEvent,
   type GameState,
   type Inventory,
@@ -14,8 +15,13 @@ function describe(event: GameEvent): string {
   switch (event.type) {
     case "moved":
       return `moved to ${event.to.x}, ${event.to.y}`;
-    case "blocked":
+    case "blocked": {
+      const needed = ENTRY_REQUIRES[event.terrain];
+      if (needed !== null && needed !== "never") {
+        return `You need a ${needed} to enter.`;
+      }
       return `blocked by ${event.terrain} at ${event.toward.x}, ${event.toward.y}`;
+    }
     case "harvested":
       return `harvested ${event.amount} ${event.material} at ${event.at.x}, ${event.at.y}`;
     case "harvestFailed":
