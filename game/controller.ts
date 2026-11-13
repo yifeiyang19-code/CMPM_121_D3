@@ -9,6 +9,8 @@ const ARROWS: Record<string, Direction> = {
   ArrowRight: "east",
 };
 
+const HARVEST_KEYS = new Set(["g", "G"]);
+
 // Input in, core in the middle, presenter out. None of those three knows the others,
 // which makes this a Mediator: https://refactoring.guru/design-patterns/mediator
 // There is no frame loop here: a command runs on a key press or when playback ends.
@@ -37,8 +39,15 @@ export class Controller {
   }
 
   private keyDown(event: KeyboardEvent) {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (HARVEST_KEYS.has(event.key)) {
+      if (event.repeat) return;
+      this.pressed = { type: "harvest" };
+      this.next();
+      return;
+    }
     const direction = ARROWS[event.key];
-    if (!direction || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (!direction) return;
     // Otherwise arrow keys would also scroll the page.
     event.preventDefault();
     if (event.repeat) return;

@@ -3,6 +3,26 @@
 
 export type Terrain = "grass" | "forest" | "water" | "rock";
 
+export type Material = "wood" | "torch" | "ore";
+
+export type Inventory = Partial<Record<Material, number>>;
+
+export type Yield = { material: Material; amount: number };
+
+export const YIELDS: Record<Terrain, Yield | null> = {
+  grass: null,
+  forest: { material: "wood", amount: 1 },
+  water: null,
+  rock: { material: "ore", amount: 1 },
+};
+
+export const ENTRY_REQUIRES: Record<Terrain, Material | null | "never"> = {
+  grass: null,
+  forest: null,
+  water: "never",
+  rock: "torch",
+};
+
 export function terrainAt(seed: number, x: number, y: number): Terrain {
   const raw = 0.65 * noise(seed, x, y, 9) + 0.35 * noise(seed + 1, x, y, 3);
   // Every game starts at the origin, so flatten the land there. Otherwise some
@@ -13,8 +33,11 @@ export function terrainAt(seed: number, x: number, y: number): Terrain {
   return noise(seed + 2, x, y, 6) < 0.45 ? "forest" : "grass";
 }
 
-export function isPassable(terrain: Terrain): boolean {
-  return terrain !== "water" && terrain !== "rock";
+export function isPassable(terrain: Terrain, held: Inventory = {}): boolean {
+  const needed = ENTRY_REQUIRES[terrain];
+  if (needed === null) return true;
+  if (needed === "never") return false;
+  return (held[needed] ?? 0) > 0;
 }
 
 // Value noise: random numbers at coarse grid points, blended between them, so

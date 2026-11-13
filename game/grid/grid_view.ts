@@ -2,7 +2,7 @@
 // Input, the HUD, sound, and the order of events all live outside it.
 import Phaser from "phaser";
 import type { Cell, GameEvent, GameState, Terrain } from "../../core/mod.ts";
-import { terrainAt } from "../../core/mod.ts";
+import { cellKey, terrainAt } from "../../core/mod.ts";
 
 export const CELL_SIZE = 32;
 const VIEW_WIDTH = 800;
@@ -11,6 +11,11 @@ const WALK_MS = 120;
 const BUMP_MS = 60;
 const MARKER_COLOR = 0xf5e6a8;
 const BUMP_COLOR = 0xe0533d;
+const HARVESTED_COLOR = 0x8a5a2b;
+const HARVESTED_INSET = 9;
+const GLOW_COLOR = 0xffc861;
+const GLOW_ALPHA = 0.75;
+const GLOW_MS = 220;
 
 const TERRAIN_COLORS: Record<Terrain, number> = {
   grass: 0x5d9e4a,
@@ -36,6 +41,7 @@ function cellCenter({ x, y }: Cell): Cell {
 export class GridView extends Phaser.Scene {
   private readonly seed: number;
   private readonly start: Cell;
+  private readonly harvested: Set<string>;
   private ground!: Phaser.GameObjects.Graphics;
   private marker!: Phaser.GameObjects.Arc;
 
@@ -43,6 +49,7 @@ export class GridView extends Phaser.Scene {
     super("grid");
     this.seed = state.seed;
     this.start = { ...state.player };
+    this.harvested = new Set(Object.keys(state.harvested));
   }
 
   create() {
@@ -82,11 +89,41 @@ export class GridView extends Phaser.Scene {
         return this.walk(event.to);
       case "blocked":
         return this.bump(event.at, event.toward);
+      case "harvested":
+        this.harvested.add(cellKey(event.at));
+        this.drawCellsAround(event.at);
+        return this.glow(event.at);
+      case "harvestFailed":
+        return Promise.resolve();
       default:
         // A new event type fails to type-check here until it has a presentation.
         event satisfies never;
         return Promise.resolve();
     }
+  }
+
+  private glow(at: Cell): Promise<void> {
+    const light = this.add
+      .rectangle(
+        at.x * CELL_SIZE,
+        at.y * CELL_SIZE,
+        CELL_SIZE - 1,
+        CELL_SIZE - 1,
+        GLOW_COLOR,
+        GLOW_ALPHA,
+      )
+      .setOrigin(0);
+    return new Promise((done) => {
+      this.tweens.add({
+        targets: light,
+        alpha: 0,
+        duration: GLOW_MS,
+        onComplete: () => {
+          light.destroy();
+          done();
+        },
+      });
+    });
   }
 
   private walk(to: Cell): Promise<void> {
@@ -132,6 +169,14 @@ export class GridView extends Phaser.Scene {
           y * CELL_SIZE,
           CELL_SIZE - 1,
           CELL_SIZE - 1,
+        );
+        if (!this.harvested.has(cellKey({ x, y }))) continue;
+        this.ground.fillStyle(HARVESTED_COLOR);
+        this.ground.fillRect(
+          x * CELL_SIZE + HARVESTED_INSET,
+          y * CELL_SIZE + HARVESTED_INSET,
+          CELL_SIZE - 1 - 2 * HARVESTED_INSET,
+          CELL_SIZE - 1 - 2 * HARVESTED_INSET,
         );
       }
     }
