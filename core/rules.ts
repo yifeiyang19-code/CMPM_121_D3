@@ -10,11 +10,14 @@ import {
   stacksOf,
   totalsOf,
 } from "./inventory.ts";
+import type { Material } from "./materials.ts";
 import { type RecipeId, RECIPES } from "./recipes.ts";
 import {
   DROPS,
   dropsAt,
-  isPassable,
+  GATHER_FROM,
+  meets,
+  requirementAt,
   type Terrain,
   terrainAt,
 } from "./terrain.ts";
@@ -40,18 +43,28 @@ export type GameState = {
 export type Command =
   | { type: "move"; direction: Direction }
   | { type: "harvest" }
+  | { type: "fish" }
   | { type: "craft"; recipe: RecipeId };
 
-export type HarvestFailure = "no-material" | "depleted";
+// "out-of-reach": fishing with no water beside the player.
+export type HarvestFailure = "no-material" | "depleted" | "out-of-reach";
 
 export type CraftFailure = "missing-materials";
 
 // Domain Event: https://martinfowler.com/eaaDev/DomainEvent.html
 // Events that change the inventory carry the resulting totals, so a listener can
 // keep its own copy in step without knowing the rule that changed it.
+// `needs` on a blocked move is the material that would have opened the way, or
+// null when nothing can.
 export type GameEvent =
   | { type: "moved"; from: Cell; to: Cell }
-  | { type: "blocked"; at: Cell; toward: Cell; terrain: Terrain }
+  | {
+    type: "blocked";
+    at: Cell;
+    toward: Cell;
+    terrain: Terrain;
+    needs: Material | null;
+  }
   | { type: "harvested"; at: Cell; gained: Inventory; totals: Inventory }
   | {
     type: "harvestFailed";
@@ -92,6 +105,8 @@ export function apply(state: GameState, command: Command): GameEvent[] {
       return move(state, command.direction);
     case "harvest":
       return harvest(state);
+    case "fish":
+      return fish(state);
     case "craft":
       return craft(state, command.recipe);
   }
@@ -106,30 +121,74 @@ function move(state: GameState, direction: Direction): GameEvent[] {
   const from = { ...state.player };
   const to = { x: from.x + step.x, y: from.y + step.y };
   const terrain = terrainAt(state.seed, to.x, to.y);
-  if (!isPassable(terrain, state.inventory)) {
-    return [{ type: "blocked", at: from, toward: to, terrain }];
+  const needed = requirementAt(state.seed, to.x, to.y);
+  if (!meets(needed, state.inventory)) {
+    return [{
+      type: "blocked",
+      at: from,
+      toward: to,
+      terrain,
+      needs: needed === "never" ? null : needed,
+    }];
   }
   state.player.x = to.x;
   state.player.y = to.y;
   return [{ type: "moved", from, to }];
 }
 
+// Takes from the cell the player stands on.
 function harvest(state: GameState): GameEvent[] {
   const at = { ...state.player };
   const terrain = terrainAt(state.seed, at.x, at.y);
-  if (DROPS[terrain].length === 0) {
+  if (DROPS[terrain].length === 0 || GATHER_FROM[terrain] !== "here") {
     return [{ type: "harvestFailed", at, terrain, reason: "no-material" }];
   }
-  const key = cellKey(at);
-  if (state.harvested[key]) {
-    return [{ type: "harvestFailed", at, terrain, reason: "depleted" }];
+  return take(state, at, at);
+}
+
+// Takes from a cell beside the player that is gathered from the shore, such as a
+// lake. It tries north, south, east, then west, and picks the first not yet taken.
+function fish(state: GameState): GameEvent[] {
+  const here = { ...state.player };
+  const shore = Object.values(STEPS)
+    .map((step) => ({ x: here.x + step.x, y: here.y + step.y }))
+    .filter((cell) =>
+      GATHER_FROM[terrainAt(state.seed, cell.x, cell.y)] === "beside"
+    );
+  if (shore.length === 0) {
+    const terrain = terrainAt(state.seed, here.x, here.y);
+    return [{
+      type: "harvestFailed",
+      at: here,
+      terrain,
+      reason: "out-of-reach",
+    }];
   }
-  const gained = dropsAt(state.seed, at.x, at.y);
+  const target = shore.find((cell) => !state.harvested[cellKey(cell)]) ??
+    shore[0];
+  return take(state, here, target);
+}
+
+// Each cell gives its drops once. `from` is where the player is, and `target` the
+// cell that gives: the same cell for a harvest, a neighbor for fishing.
+function take(state: GameState, from: Cell, target: Cell): GameEvent[] {
+  const key = cellKey(target);
+  if (state.harvested[key]) {
+    // Like every failure, it describes the cell the player is on.
+    const terrain = terrainAt(state.seed, from.x, from.y);
+    return [{
+      type: "harvestFailed",
+      at: { ...from },
+      terrain,
+      reason: "depleted",
+    }];
+  }
+  const gained = dropsAt(state.seed, target.x, target.y);
   addTo(state.inventory, gained);
   state.harvested[key] = true;
   return [{
     type: "harvested",
-    at,
+    at: { ...target },
     gained,
     totals: totalsOf(state.inventory, gained),
   }];

@@ -6,3 +6,4 @@ export * from "./materials.ts";
 export * from "./recipes.ts";
 export * from "./rules.ts";
 export * from "./terrain.ts";
+export * from "./light.ts";

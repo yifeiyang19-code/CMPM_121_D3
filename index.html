@@ -6,6 +6,7 @@
     <title>D3 project</title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="/game/style.css" />
+    <link rel="stylesheet" href="/game/hud.css" />
   </head>
   <body>
     <main id="app">
@@ -17,10 +18,29 @@
           <dt>Terrain</dt>
           <dd id="terrain"></dd>
           <dt>Inventory</dt>
-          <dd id="inventory"></dd>
+          <dd>
+            <table>
+              <thead class="sr-only">
+                <tr>
+                  <th scope="col">Material</th>
+                  <th scope="col">Count</th>
+                </tr>
+              </thead>
+              <tbody id="inventory"></tbody>
+            </table>
+          </dd>
           <dt>Recipes</dt>
           <dd>
-            <ol id="recipes"></ol>
+            <table>
+              <thead class="sr-only">
+                <tr>
+                  <th scope="col">Item</th>
+                  <th scope="col">Requires</th>
+                  <th scope="col">Status</th>
+                </tr>
+              </thead>
+              <tbody id="recipes"></tbody>
+            </table>
           </dd>
         </dl>
         <p id="live" aria-live="polite"></p>

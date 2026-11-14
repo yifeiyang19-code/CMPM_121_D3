@@ -1,5 +1,5 @@
 import {
-  ENTRY_REQUIRES,
+  applyTotals,
   type GameEvent,
   type GameState,
   type Inventory,
@@ -10,9 +10,19 @@ import {
   stacksOf,
   terrainAt,
 } from "../core/mod.ts";
+import { keyForRecipe } from "./keys.ts";
 
 function element(id: string): HTMLElement {
   return document.getElementById(id)!;
+}
+
+function tag<K extends keyof HTMLElementTagNameMap>(
+  name: K,
+  ...children: (string | Node)[]
+): HTMLElementTagNameMap[K] {
+  const created = document.createElement(name);
+  created.append(...children);
+  return created;
 }
 
 // "2 wood, 1 resin". Labels come from the material registry, so a new material
@@ -23,25 +33,46 @@ function format(items: Inventory): string {
     .join(", ");
 }
 
+// The name of what a recipe makes: "torch", or "arrow x2" when it makes several.
+function nameOf(items: Inventory): string {
+  return stacksOf(items)
+    .map(({ material, amount }) =>
+      amount > 1
+        ? `${MATERIALS[material].label} x${amount}`
+        : MATERIALS[material].label
+    )
+    .join(", ");
+}
+
+function describeHarvestFailure(
+  event: Extract<GameEvent, { type: "harvestFailed" }>,
+): string {
+  const where = `${event.at.x}, ${event.at.y}`;
+  switch (event.reason) {
+    case "depleted":
+      return `already harvested at ${where}`;
+    case "out-of-reach":
+      return `no water within reach at ${where}`;
+    case "no-material":
+      return `nothing to harvest on ${event.terrain} at ${where}`;
+  }
+}
+
 function describe(event: GameEvent): string {
   switch (event.type) {
     case "moved":
       return `moved to ${event.to.x}, ${event.to.y}`;
-    case "blocked": {
-      const needed = ENTRY_REQUIRES[event.terrain];
-      if (needed !== null && needed !== "never") {
-        return `You need a ${MATERIALS[needed].label} to enter.`;
+    case "blocked":
+      if (event.needs !== null) {
+        return `You need a ${MATERIALS[event.needs].label} to enter.`;
       }
       return `blocked by ${event.terrain} at ${event.toward.x}, ${event.toward.y}`;
-    }
     case "harvested":
       return `harvested ${
         format(event.gained)
       } at ${event.at.x}, ${event.at.y}`;
     case "harvestFailed":
-      return event.reason === "depleted"
-        ? `already harvested at ${event.at.x}, ${event.at.y}`
-        : `nothing to harvest on ${event.terrain} at ${event.at.x}, ${event.at.y}`;
+      return describeHarvestFailure(event);
     case "crafted":
       return `crafted ${format(event.produced)} from ${format(event.consumed)}`;
     case "craftFailed":
@@ -68,41 +99,44 @@ export class Hud {
     if (event.type === "moved") this.showPosition(event.to.x, event.to.y);
     // Any event that changes the inventory carries the resulting totals.
     if (event.type === "harvested" || event.type === "crafted") {
-      this.syncInventory(event.totals);
+      applyTotals(this.inventory, event.totals);
+      this.showInventory();
+      this.showRecipes();
     }
   }
 
-  private syncInventory(totals: Inventory) {
-    for (const { material, amount } of stacksOf(totals)) {
-      if (amount > 0) this.inventory[material] = amount;
-      else delete this.inventory[material];
+  // One row per material, as table cells so that the names and the counts each
+  // line up in a column.
+  private showInventory() {
+    const rows = stacksOf(this.inventory).map(({ material, amount }) =>
+      tag("tr", tag("td", MATERIALS[material].label), tag("td", String(amount)))
+    );
+    if (rows.length === 0) {
+      const empty = tag("td", "empty");
+      empty.colSpan = 2;
+      rows.push(tag("tr", empty));
     }
-    this.showInventory();
-    this.showRecipes();
+    element("inventory").replaceChildren(...rows);
   }
 
-  // An ordered list, so its numerals are the keys: the controller binds 1 to the
-  // first recipe, 2 to the second, and the list is in the same order. Whether a
-  // recipe can be made now is said in words, not only by style.
+  // One row per recipe: its key and what it makes, the materials it needs listed
+  // one under another, and whether the player has them all. The status is said in
+  // words, not only by style.
   private showRecipes() {
-    const items = RECIPE_IDS.map((id) => {
+    const rows = RECIPE_IDS.map((id) => {
       const { inputs, outputs } = RECIPES[id];
       const ready = stacksOf(missingFor(this.inventory, inputs)).length === 0;
-      const item = document.createElement("li");
-      item.textContent = `${format(outputs)}: ${format(inputs)}${
-        ready ? " (ready)" : ""
-      }`;
-      return item;
+      const needs = stacksOf(inputs).map(({ material, amount }) =>
+        tag("li", `${amount} ${MATERIALS[material].label}`)
+      );
+      return tag(
+        "tr",
+        tag("td", `[${keyForRecipe(id) ?? "-"}] ${nameOf(outputs)}`),
+        tag("td", tag("ul", ...needs)),
+        tag("td", ready ? "(ready)" : "(not ready)"),
+      );
     });
-    element("recipes").replaceChildren(...items);
-  }
-
-  private showInventory() {
-    const entries = stacksOf(this.inventory)
-      .map(({ material, amount }) => `${MATERIALS[material].label}: ${amount}`);
-    element("inventory").textContent = entries.length > 0
-      ? entries.join(", ")
-      : "empty";
+    element("recipes").replaceChildren(...rows);
   }
 
   private showPosition(x: number, y: number) {

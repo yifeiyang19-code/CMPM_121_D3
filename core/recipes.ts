@@ -7,10 +7,15 @@ import type { Inventory } from "./inventory.ts";
 export type Recipe = { inputs: Inventory; outputs: Inventory };
 
 export const RECIPES = {
-  // Unlocks rock, and through it ore and coal.
+  // Unlocks small caves, and through them ore and coal.
   torch: {
     inputs: { wood: 1, fiber: 1, resin: 1 },
     outputs: { torch: 1 },
+  },
+  // Unlocks large caves. Its ore and coal come from the caves a torch opens.
+  lantern: {
+    inputs: { ore: 2, coal: 1, resin: 1 },
+    outputs: { lantern: 1 },
   },
 } satisfies Record<string, Recipe>;
 

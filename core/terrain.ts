@@ -4,7 +4,7 @@
 import { countOf, type Inventory } from "./inventory.ts";
 import type { Material } from "./materials.ts";
 
-export type Terrain = "grass" | "forest" | "water" | "rock";
+export type Terrain = "grass" | "forest" | "water" | "cave";
 
 // One line of a terrain's loot table. A chance of 1 always drops; anything lower
 // is a rare drop, decided by the seed and the cell so the world stays a pure
@@ -20,20 +20,43 @@ export const DROPS: Record<Terrain, Drop[]> = {
     { material: "wood", amount: 1, chance: 1 },
     { material: "resin", amount: 1, chance: 0.35 },
   ],
-  // Water holds nothing until a way onto it exists: harvesting happens on the
-  // cell the player stands on, and water is never passable.
-  water: [],
-  rock: [
+  water: [
+    { material: "fish", amount: 1, chance: 1 },
+  ],
+  cave: [
     { material: "ore", amount: 1, chance: 1 },
     { material: "coal", amount: 1, chance: 0.25 },
   ],
+};
+
+// Where the player takes a terrain's drops from: standing on the cell, or on the
+// shore beside it. Water is never passable, so it can only be fished from beside.
+export type Reach = "here" | "beside";
+
+export const GATHER_FROM: Record<Terrain, Reach> = {
+  grass: "here",
+  forest: "here",
+  water: "beside",
+  cave: "here",
 };
 
 export const ENTRY_REQUIRES: Record<Terrain, Material | null | "never"> = {
   grass: null,
   forest: null,
   water: "never",
-  rock: "torch",
+  cave: "torch",
+};
+
+// A cave of more cells than this needs a lantern. One of exactly this many, or
+// fewer, still opens to a torch.
+export const LARGE_CAVE_CELLS = 20;
+
+// Some terrains ask for more once the region they belong to grows past a size.
+// This overrides ENTRY_REQUIRES for such a region.
+export const SIZE_REQUIREMENTS: Partial<
+  Record<Terrain, { above: number; requires: Material }>
+> = {
+  cave: { above: LARGE_CAVE_CELLS, requires: "lantern" },
 };
 
 export function terrainAt(seed: number, x: number, y: number): Terrain {
@@ -42,8 +65,60 @@ export function terrainAt(seed: number, x: number, y: number): Terrain {
   // seeds would start inside a lake or walled into a pocket.
   const height = 0.5 + (raw - 0.5) * Math.min(1, Math.hypot(x, y) / 10);
   if (height < 0.3) return "water";
-  if (height > 0.7) return "rock";
+  if (height > 0.7) return "cave";
   return noise(seed + 2, x, y, 6) < 0.45 ? "forest" : "grass";
+}
+
+// The cells of the same terrain that join this one by steps north, south, east,
+// or west, nearest first. It stops once it has `limit` cells, so asking about an
+// enormous region stays cheap: callers pass a limit one past the size they care
+// about.
+export function regionOf(
+  seed: number,
+  x: number,
+  y: number,
+  limit: number,
+): { x: number; y: number }[] {
+  const terrain = terrainAt(seed, x, y);
+  const seen = new Set([`${x},${y}`]);
+  const region = [{ x, y }];
+  for (let i = 0; i < region.length && region.length < limit; i++) {
+    const at = region[i];
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const next = { x: at.x + dx, y: at.y + dy };
+      const key = `${next.x},${next.y}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (terrainAt(seed, next.x, next.y) !== terrain) continue;
+      region.push(next);
+      if (region.length >= limit) break;
+    }
+  }
+  return region;
+}
+
+// What a cell asks of anyone entering it: a material to hold, nothing, or
+// "never". Unlike ENTRY_REQUIRES it looks at the cell's surroundings.
+export function requirementAt(
+  seed: number,
+  x: number,
+  y: number,
+): Material | null | "never" {
+  const terrain = terrainAt(seed, x, y);
+  const bigger = SIZE_REQUIREMENTS[terrain];
+  if (bigger && regionOf(seed, x, y, bigger.above + 1).length > bigger.above) {
+    return bigger.requires;
+  }
+  return ENTRY_REQUIRES[terrain];
+}
+
+export function meets(
+  requirement: Material | null | "never",
+  held: Inventory,
+): boolean {
+  if (requirement === null) return true;
+  if (requirement === "never") return false;
+  return countOf(held, requirement) > 0;
 }
 
 // What harvesting this cell would give. Each table line rolls on its own, keyed by
@@ -58,11 +133,9 @@ export function dropsAt(seed: number, x: number, y: number): Inventory {
   return found;
 }
 
+// Whether the terrain itself can be entered, ignoring how big a region it is in.
 export function isPassable(terrain: Terrain, held: Inventory = {}): boolean {
-  const needed = ENTRY_REQUIRES[terrain];
-  if (needed === null) return true;
-  if (needed === "never") return false;
-  return countOf(held, needed) > 0;
+  return meets(ENTRY_REQUIRES[terrain], held);
 }
 
 // A salt keeps loot rolls apart from the terrain noise that shares gridValue().

@@ -1,11 +1,6 @@
-import {
-  apply,
-  type Command,
-  type Direction,
-  RECIPE_IDS,
-  type RecipeId,
-} from "../core/mod.ts";
+import { apply, type Command, type Direction } from "../core/mod.ts";
 import type { GameState } from "../core/mod.ts";
+import { RECIPE_KEYS } from "./keys.ts";
 import type { Presenter } from "./presenter.ts";
 
 const ARROWS: Record<string, Direction> = {
@@ -16,12 +11,7 @@ const ARROWS: Record<string, Direction> = {
 };
 
 const HARVEST_KEYS = new Set(["g", "G"]);
-
-// Number keys follow the recipe table: 1 is the first recipe, 2 the second, and
-// so on. A new recipe gets its key without touching this file.
-const RECIPE_KEYS = new Map<string, RecipeId>(
-  RECIPE_IDS.slice(0, 9).map((id, index) => [String(index + 1), id]),
-);
+const FISH_KEYS = new Set(["f", "F"]);
 
 // Input in, core in the middle, presenter out. None of those three knows the others,
 // which makes this a Mediator: https://refactoring.guru/design-patterns/mediator
@@ -55,6 +45,11 @@ export class Controller {
     if (HARVEST_KEYS.has(event.key)) {
       if (event.repeat) return;
       this.press({ type: "harvest" });
+      return;
+    }
+    if (FISH_KEYS.has(event.key)) {
+      if (event.repeat) return;
+      this.press({ type: "fish" });
       return;
     }
     const recipe = RECIPE_KEYS.get(event.key);

@@ -59,3 +59,12 @@ export function totalsOf(inventory: Inventory, items: Inventory): Inventory {
   }
   return totals;
 }
+
+// Mutates `inventory` to match `totals`, as carried by events that change it.
+// A total of zero removes the material, so no zero is ever stored.
+export function applyTotals(inventory: Inventory, totals: Inventory): void {
+  for (const { material, amount } of stacksOf(totals)) {
+    if (amount > 0) inventory[material] = amount;
+    else delete inventory[material];
+  }
+}
