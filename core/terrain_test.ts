@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertNotEquals } from "@std/assert";
-import { isPassable, terrainAt } from "./mod.ts";
+import { dropsAt, isPassable, terrainAt } from "./mod.ts";
 
 function sample(seed: number, originX = 0, originY = 0): string[] {
   const cells: string[] = [];
@@ -39,4 +39,37 @@ Deno.test("no seed starts walled in", () => {
     }
     assert(seen.size >= 2000, `seed ${seed} stops at ${seen.size} cells`);
   }
+});
+
+// Counts, over a patch of the world, how often a terrain drops a material.
+function tally(seed: number, terrain: string, material: "resin" | "wood") {
+  let cells = 0;
+  let withMaterial = 0;
+  for (let y = -60; y < 60; y++) {
+    for (let x = -60; x < 60; x++) {
+      if (terrainAt(seed, x, y) !== terrain) continue;
+      cells++;
+      if ((dropsAt(seed, x, y)[material] ?? 0) > 0) withMaterial++;
+    }
+  }
+  return { cells, withMaterial };
+}
+
+Deno.test("loot depends only on seed and coordinates", () => {
+  for (let x = -20; x < 20; x++) {
+    assertEquals(dropsAt(121, x, 5), dropsAt(121, x, 5));
+  }
+});
+
+Deno.test("a guaranteed drop is always there", () => {
+  const { cells, withMaterial } = tally(121, "forest", "wood");
+  assert(cells > 0);
+  assertEquals(withMaterial, cells);
+});
+
+Deno.test("a rare drop shows up in some cells but not all", () => {
+  const { cells, withMaterial } = tally(121, "forest", "resin");
+  assert(cells > 0);
+  assert(withMaterial > 0, "no forest cell dropped resin");
+  assert(withMaterial < cells, "every forest cell dropped resin");
 });

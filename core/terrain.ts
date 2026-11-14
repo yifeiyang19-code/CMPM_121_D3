@@ -1,19 +1,32 @@
 // The world is a pure function of a seed and coordinates. Nothing here is stored,
 // so the world can be effectively unbounded while saved state stays small.
 
+import { countOf, type Inventory } from "./inventory.ts";
+import type { Material } from "./materials.ts";
+
 export type Terrain = "grass" | "forest" | "water" | "rock";
 
-export type Material = "wood" | "torch" | "ore";
+// One line of a terrain's loot table. A chance of 1 always drops; anything lower
+// is a rare drop, decided by the seed and the cell so the world stays a pure
+// function and a replay finds the same loot.
+export type Drop = { material: Material; amount: number; chance: number };
 
-export type Inventory = Partial<Record<Material, number>>;
-
-export type Yield = { material: Material; amount: number };
-
-export const YIELDS: Record<Terrain, Yield | null> = {
-  grass: null,
-  forest: { material: "wood", amount: 1 },
-  water: null,
-  rock: { material: "ore", amount: 1 },
+export const DROPS: Record<Terrain, Drop[]> = {
+  grass: [
+    { material: "fiber", amount: 1, chance: 1 },
+    { material: "flint", amount: 1, chance: 0.2 },
+  ],
+  forest: [
+    { material: "wood", amount: 1, chance: 1 },
+    { material: "resin", amount: 1, chance: 0.35 },
+  ],
+  // Water holds nothing until a way onto it exists: harvesting happens on the
+  // cell the player stands on, and water is never passable.
+  water: [],
+  rock: [
+    { material: "ore", amount: 1, chance: 1 },
+    { material: "coal", amount: 1, chance: 0.25 },
+  ],
 };
 
 export const ENTRY_REQUIRES: Record<Terrain, Material | null | "never"> = {
@@ -33,11 +46,28 @@ export function terrainAt(seed: number, x: number, y: number): Terrain {
   return noise(seed + 2, x, y, 6) < 0.45 ? "forest" : "grass";
 }
 
+// What harvesting this cell would give. Each table line rolls on its own, keyed by
+// its position in the table, so adding a line never reshuffles the others' rolls.
+export function dropsAt(seed: number, x: number, y: number): Inventory {
+  const found: Inventory = {};
+  DROPS[terrainAt(seed, x, y)].forEach((drop, line) => {
+    if (dropRoll(seed, x, y, line) < drop.chance) {
+      found[drop.material] = countOf(found, drop.material) + drop.amount;
+    }
+  });
+  return found;
+}
+
 export function isPassable(terrain: Terrain, held: Inventory = {}): boolean {
   const needed = ENTRY_REQUIRES[terrain];
   if (needed === null) return true;
   if (needed === "never") return false;
-  return (held[needed] ?? 0) > 0;
+  return countOf(held, needed) > 0;
+}
+
+// A salt keeps loot rolls apart from the terrain noise that shares gridValue().
+function dropRoll(seed: number, x: number, y: number, line: number): number {
+  return gridValue(seed ^ (0x5bd1e995 + line), x, y);
 }
 
 // Value noise: random numbers at coarse grid points, blended between them, so

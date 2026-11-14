@@ -1,7 +1,8 @@
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import {
   apply,
   cellKey,
+  dropsAt,
   type GameState,
   isPassable,
   newGame,
@@ -91,21 +92,33 @@ function standingOn(terrain: Terrain): GameState {
   throw new Error("Found no suitable cell on this row.");
 }
 
-Deno.test("harvesting a forest cell for the first time gives one wood", () => {
+Deno.test("harvesting a forest cell for the first time gives its drops", () => {
   const state = standingOn("forest");
   const { x, y } = state.player;
+  // Rare drops depend on the cell, so ask the world what this cell holds.
+  const gained = dropsAt(SEED, x, y);
 
   const events = apply(state, { type: "harvest" });
 
-  assertEquals(state.inventory, { wood: 1 });
+  assertEquals(gained.wood, 1);
+  assertEquals(state.inventory, gained);
   assertEquals(state.harvested, { [cellKey({ x, y })]: true });
   assertEquals(events, [{
     type: "harvested",
     at: { x, y },
-    material: "wood",
-    amount: 1,
-    total: 1,
+    gained,
+    totals: gained,
   }]);
+});
+
+Deno.test("harvesting a grass cell gives fiber", () => {
+  const state = standingOn("grass");
+  const { x, y } = state.player;
+
+  apply(state, { type: "harvest" });
+
+  assertEquals(state.inventory, dropsAt(SEED, x, y));
+  assertEquals(state.inventory.fiber, 1);
 });
 
 Deno.test("harvesting the same cell again changes nothing", () => {
@@ -125,8 +138,10 @@ Deno.test("harvesting the same cell again changes nothing", () => {
   }]);
 });
 
-Deno.test("harvesting terrain with no material changes nothing", () => {
-  const state = standingOn("grass");
+Deno.test("harvesting terrain with no drops changes nothing", () => {
+  // Nothing grows on water, and no rule lets a player stand there yet, so
+  // this state is placed by hand.
+  const state = standingOn("water");
   const snapshot = JSON.parse(JSON.stringify(state));
   const { x, y } = state.player;
 
@@ -136,9 +151,21 @@ Deno.test("harvesting terrain with no material changes nothing", () => {
   assertEquals(events, [{
     type: "harvestFailed",
     at: { x, y },
-    terrain: "grass",
+    terrain: "water",
     reason: "no-material",
   }]);
+});
+
+Deno.test("harvest totals add to what the player already holds", () => {
+  const state = standingOn("forest");
+  state.inventory.wood = 4;
+
+  const events = apply(state, { type: "harvest" });
+
+  assertEquals(state.inventory.wood, 5);
+  const [event] = events;
+  assert(event.type === "harvested");
+  assertEquals(event.totals.wood, 5);
 });
 
 function westOf(terrain: Terrain): GameState {
@@ -207,18 +234,19 @@ Deno.test("rock yields ore once to a player with a torch", () => {
   state.inventory.torch = 1;
   apply(state, { type: "move", direction: "east" });
   const { x, y } = state.player;
+  const gained = dropsAt(SEED, x, y);
 
   const first = apply(state, { type: "harvest" });
   const second = apply(state, { type: "harvest" });
 
-  assertEquals(state.inventory, { torch: 1, ore: 1 });
+  assertEquals(gained.ore, 1);
+  assertEquals(state.inventory, { torch: 1, ...gained });
   assertEquals(state.harvested, { [cellKey({ x, y })]: true });
   assertEquals(first, [{
     type: "harvested",
     at: { x, y },
-    material: "ore",
-    amount: 1,
-    total: 1,
+    gained,
+    totals: gained,
   }]);
   assertEquals(second, [{
     type: "harvestFailed",

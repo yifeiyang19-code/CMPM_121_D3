@@ -3,12 +3,20 @@
 // apply() decides how, or whether, to show them over time.
 
 import {
+  addTo,
   type Inventory,
+  missingFor,
+  removeFrom,
+  stacksOf,
+  totalsOf,
+} from "./inventory.ts";
+import { type RecipeId, RECIPES } from "./recipes.ts";
+import {
+  DROPS,
+  dropsAt,
   isPassable,
-  type Material,
   type Terrain,
   terrainAt,
-  YIELDS,
 } from "./terrain.ts";
 
 export type Cell = { x: number; y: number };
@@ -31,26 +39,38 @@ export type GameState = {
 // Command: https://gameprogrammingpatterns.com/command.html
 export type Command =
   | { type: "move"; direction: Direction }
-  | { type: "harvest" };
+  | { type: "harvest" }
+  | { type: "craft"; recipe: RecipeId };
 
 export type HarvestFailure = "no-material" | "depleted";
 
+export type CraftFailure = "missing-materials";
+
 // Domain Event: https://martinfowler.com/eaaDev/DomainEvent.html
+// Events that change the inventory carry the resulting totals, so a listener can
+// keep its own copy in step without knowing the rule that changed it.
 export type GameEvent =
   | { type: "moved"; from: Cell; to: Cell }
   | { type: "blocked"; at: Cell; toward: Cell; terrain: Terrain }
-  | {
-    type: "harvested";
-    at: Cell;
-    material: Material;
-    amount: number;
-    total: number;
-  }
+  | { type: "harvested"; at: Cell; gained: Inventory; totals: Inventory }
   | {
     type: "harvestFailed";
     at: Cell;
     terrain: Terrain;
     reason: HarvestFailure;
+  }
+  | {
+    type: "crafted";
+    recipe: RecipeId;
+    consumed: Inventory;
+    produced: Inventory;
+    totals: Inventory;
+  }
+  | {
+    type: "craftFailed";
+    recipe: RecipeId;
+    reason: CraftFailure;
+    missing: Inventory;
   };
 
 const STEPS: Record<Direction, Cell> = {
@@ -72,6 +92,8 @@ export function apply(state: GameState, command: Command): GameEvent[] {
       return move(state, command.direction);
     case "harvest":
       return harvest(state);
+    case "craft":
+      return craft(state, command.recipe);
   }
 }
 
@@ -95,22 +117,46 @@ function move(state: GameState, direction: Direction): GameEvent[] {
 function harvest(state: GameState): GameEvent[] {
   const at = { ...state.player };
   const terrain = terrainAt(state.seed, at.x, at.y);
-  const found = YIELDS[terrain];
-  if (!found) {
+  if (DROPS[terrain].length === 0) {
     return [{ type: "harvestFailed", at, terrain, reason: "no-material" }];
   }
   const key = cellKey(at);
   if (state.harvested[key]) {
     return [{ type: "harvestFailed", at, terrain, reason: "depleted" }];
   }
-  const total = (state.inventory[found.material] ?? 0) + found.amount;
-  state.inventory[found.material] = total;
+  const gained = dropsAt(state.seed, at.x, at.y);
+  addTo(state.inventory, gained);
   state.harvested[key] = true;
   return [{
     type: "harvested",
     at,
-    material: found.material,
-    amount: found.amount,
-    total,
+    gained,
+    totals: totalsOf(state.inventory, gained),
+  }];
+}
+
+// Knows nothing about any particular recipe: it reads the RECIPES table.
+function craft(state: GameState, id: RecipeId): GameEvent[] {
+  const recipe = RECIPES[id];
+  const missing = missingFor(state.inventory, recipe.inputs);
+  if (stacksOf(missing).length > 0) {
+    return [{
+      type: "craftFailed",
+      recipe: id,
+      reason: "missing-materials",
+      missing,
+    }];
+  }
+  removeFrom(state.inventory, recipe.inputs);
+  addTo(state.inventory, recipe.outputs);
+  // Copies, never the table's own objects: events outlive this call.
+  const consumed = { ...recipe.inputs };
+  const produced = { ...recipe.outputs };
+  return [{
+    type: "crafted",
+    recipe: id,
+    consumed,
+    produced,
+    totals: totalsOf(state.inventory, { ...consumed, ...produced }),
   }];
 }

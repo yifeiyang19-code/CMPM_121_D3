@@ -16,6 +16,8 @@ const HARVESTED_INSET = 9;
 const GLOW_COLOR = 0xffc861;
 const GLOW_ALPHA = 0.75;
 const GLOW_MS = 220;
+const PULSE_MS = 120;
+const PULSE_SCALE = 1.5;
 
 const TERRAIN_COLORS: Record<Terrain, number> = {
   grass: 0x5d9e4a,
@@ -95,11 +97,28 @@ export class GridView extends Phaser.Scene {
         return this.glow(event.at);
       case "harvestFailed":
         return Promise.resolve();
+      case "crafted":
+        return this.pulse();
+      case "craftFailed":
+        return Promise.resolve();
       default:
         // A new event type fails to type-check here until it has a presentation.
         event satisfies never;
         return Promise.resolve();
     }
+  }
+
+  // The marker swells and settles: something was made.
+  private pulse(): Promise<void> {
+    return new Promise((done) => {
+      this.tweens.add({
+        targets: this.marker,
+        scale: PULSE_SCALE,
+        duration: PULSE_MS,
+        yoyo: true,
+        onComplete: () => done(),
+      });
+    });
   }
 
   private glow(at: Cell): Promise<void> {
