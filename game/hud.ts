@@ -12,6 +12,8 @@ import {
 } from "../core/mod.ts";
 import { keyForRecipe } from "./keys.ts";
 
+const ENDING = "Your signal fire is lit. Rescue is on the way.";
+
 function element(id: string): HTMLElement {
   return document.getElementById(id)!;
 }
@@ -77,6 +79,8 @@ function describe(event: GameEvent): string {
       return `crafted ${format(event.produced)} from ${format(event.consumed)}`;
     case "craftFailed":
       return `Can't craft ${event.recipe}: missing ${format(event.missing)}.`;
+    case "rescued":
+      return ENDING;
   }
 }
 
@@ -95,6 +99,14 @@ export class Hud {
   }
 
   show(event: GameEvent) {
+    // The ending has its own area, so it stays in view. #live keeps the craft
+    // that led to it, and nothing plays after it.
+    if (event.type === "rescued") {
+      const ending = element("ending");
+      ending.textContent = describe(event);
+      ending.hidden = false;
+      return;
+    }
     element("live").textContent = describe(event);
     if (event.type === "moved") this.showPosition(event.to.x, event.to.y);
     // Any event that changes the inventory carries the resulting totals.

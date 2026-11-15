@@ -43,6 +43,19 @@ const LARGE_CAVE: Command[] = [
   INTO_LARGE_CAVE,
 ];
 
+const SIGNAL_FIRE: Command[] = [
+  { type: "harvest" },
+  ...moves("west", 1),
+  { type: "harvest" },
+  ...moves("west", 1),
+  ...moves("north", 3),
+  { type: "harvest" },
+  { type: "craft", recipe: "torch" },
+  ...moves("north", 6),
+  { type: "harvest" },
+  { type: "craft", recipe: "signal_fire" },
+];
+
 function run(state: GameState, commands: Command[]): GameEvent[] {
   const events: GameEvent[] = [];
   for (const command of commands) {
@@ -180,4 +193,30 @@ Deno.test("seed 121 crafts a torch and a lantern to reach both caves", () => {
   assertEquals(state.player, { x: -14, y: -12 });
   assertEquals(state.inventory, { torch: 1, wood: 1, lantern: 1 });
   assertEquals(LARGE_CAVE.length, 19);
+});
+
+Deno.test("seed 121 can light a signal fire from an empty inventory", () => {
+  const play = () => {
+    const state = newGame(SEED);
+    const events = run(state, SIGNAL_FIRE);
+    return { state, events };
+  };
+
+  const first = play();
+  const second = play();
+
+  assertEquals(first, second);
+  assertEquals(first.state.rescued, true);
+  assertEquals(first.state.player, { x: -2, y: -9 });
+  assertEquals(first.state.inventory.signal_fire, 1);
+  assertEquals(first.state.inventory.torch, 1);
+  assertEquals(
+    first.events.filter((event) => event.type === "rescued").length,
+    1,
+  );
+  assertEquals(first.events.slice(-2).map((event) => event.type), [
+    "crafted",
+    "rescued",
+  ]);
+  assertEquals(SIGNAL_FIRE.length, 17);
 });

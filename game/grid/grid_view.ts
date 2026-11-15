@@ -151,6 +151,9 @@ export class GridView extends Phaser.Scene {
         return this.pulse();
       case "craftFailed":
         return Promise.resolve();
+      case "rescued":
+        // The HUD shows the ending. The map stays as it was.
+        return Promise.resolve();
       default:
         // A new event type fails to type-check here until it has a presentation.
         event satisfies never;

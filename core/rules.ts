@@ -4,6 +4,7 @@
 
 import {
   addTo,
+  countOf,
   type Inventory,
   missingFor,
   removeFrom,
@@ -37,7 +38,10 @@ export type GameState = {
   player: Cell;
   inventory: Inventory;
   harvested: Record<string, true>;
+  rescued: boolean;
 };
+
+const RESCUE: Material = "signal_fire";
 
 // Command: https://gameprogrammingpatterns.com/command.html
 export type Command =
@@ -84,7 +88,8 @@ export type GameEvent =
     recipe: RecipeId;
     reason: CraftFailure;
     missing: Inventory;
-  };
+  }
+  | { type: "rescued" };
 
 const STEPS: Record<Direction, Cell> = {
   north: { x: 0, y: -1 },
@@ -95,11 +100,18 @@ const STEPS: Record<Direction, Cell> = {
 
 // Singleton, avoided on purpose: tests make as many games as they need. https://gameprogrammingpatterns.com/singleton.html
 export function newGame(seed: number): GameState {
-  return { seed, player: { x: 0, y: 0 }, inventory: {}, harvested: {} };
+  return {
+    seed,
+    player: { x: 0, y: 0 },
+    inventory: {},
+    harvested: {},
+    rescued: false,
+  };
 }
 
 // The single way in. It updates the state it is given and returns the events.
 export function apply(state: GameState, command: Command): GameEvent[] {
+  if (state.rescued) return [];
   switch (command.type) {
     case "move":
       return move(state, command.direction);
@@ -211,11 +223,16 @@ function craft(state: GameState, id: RecipeId): GameEvent[] {
   // Copies, never the table's own objects: events outlive this call.
   const consumed = { ...recipe.inputs };
   const produced = { ...recipe.outputs };
-  return [{
+  const events: GameEvent[] = [{
     type: "crafted",
     recipe: id,
     consumed,
     produced,
     totals: totalsOf(state.inventory, { ...consumed, ...produced }),
   }];
+  if (countOf(produced, RESCUE) > 0) {
+    state.rescued = true;
+    events.push({ type: "rescued" });
+  }
+  return events;
 }

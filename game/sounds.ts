@@ -10,6 +10,7 @@ const SOUND_FOR: Record<GameEvent["type"], SoundName | null> = {
   harvestFailed: null,
   crafted: "craft",
   craftFailed: "bump",
+  rescued: null,
 };
 
 type Note = {

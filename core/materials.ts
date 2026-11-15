@@ -14,6 +14,7 @@ export const MATERIALS = {
   fish: { label: "fish" },
   torch: { label: "torch" },
   lantern: { label: "lantern" },
+  signal_fire: { label: "Signal Fire" },
 } satisfies Record<string, MaterialInfo>;
 
 export type Material = keyof typeof MATERIALS;

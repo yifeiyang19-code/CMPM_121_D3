@@ -17,6 +17,11 @@ export const RECIPES = {
     inputs: { ore: 2, coal: 1, resin: 1 },
     outputs: { lantern: 1 },
   },
+  // Calls for rescue. Crafting it ends the game.
+  signal_fire: {
+    inputs: { wood: 1, coal: 1 },
+    outputs: { signal_fire: 1 },
+  },
 } satisfies Record<string, Recipe>;
 
 // Derived from the table, so a new entry is a valid recipe id at once.
