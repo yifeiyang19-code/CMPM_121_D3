@@ -79,6 +79,15 @@ Read the first failing command in the output, fix what it reports, and rerun `de
 
 Tooling adapted from the [CMPM 121 Fall 2026 D2 starter](https://github.com/ucsc-cmpm-121-f26/d2-starter), with the Phaser setup following the instructor's E4 starter. Those repositories have no explicit repository license; no new license is assigned to that material. The D3 scaffold was instructor-directed and authored with Anthropic Claude agent assistance. Dependencies retain their respective licenses.
 
+## Yiting's work:
+
+Crafting - System build on a materials registry, recipes table and per-terrain drop tables so that adding materials or recipe is one table entry
+Cave rules - Caves over 20 cells need a latern, and smaller one needs torch
+Day and night - day and night cycles, each last one minute, at night you only see your own cells, which is a 7x7 squares with a torch. In cave, everything outside cave goes dark
+HUD: inventory and recipe are aligned in table, display read and not ready for different materials
+Controls: Number keys are crafting recipes
+Test: about 50 tests cover crafting, fishing (didn't implement), caves and day/night cycle
+
 ## Review bot
 
 On every push to `main`, a review bot can comment on your commit. It's optional practice feedback, and it can be wrong, so weigh what it says. Until you set it up or opt out, the Review Bot workflow shows a red X and comments on every push. That X is about the bot: check the Deploy workflow separately to see whether your own checks passed.
