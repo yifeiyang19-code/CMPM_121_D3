@@ -1,6 +1,13 @@
 # D3 starter
 
-A walking skeleton: one thin slice of a game that works from end to end. The player moves gridwise over a big seeded world, with a game core that knows nothing about Phaser and a Phaser client that presents what the core reports. Assignment instructions are on Canvas.
+## Creative Goal
+
+Our game is about a lost camper trying to get home. The player gathers what they can find and crafts a torch and a lantern to explore dark caves. Light ties the game together: a torch helps you see where you’re going, a lantern lets you venture deeper, and a signal fire lets rescuers see you.
+
+## Team Contributions
+
+- **Yifei Jason** implemented resource gathering, inventory updates, the gathering animation, and persistent markers for harvested tiles. He added the signal fire recipe and rescue ending, including the HUD message and sound. He wrote progression tests for torch and lantern access, a 17-command playthrough from spawn to rescue, and tests for the rescue rules.
+- **Yiting** built the crafting system around a materials registry, a recipe table, and terrain-specific drop tables. He added the number-key crafting controls, the day–night cycle, reduced visibility in caves, and torch and lantern requirements for entering caves. He reorganized the HUD into tables showing inventory and recipe readiness, and wrote tests covering crafting, fishing, cave access, and the day–night cycle.
 
 Install [Deno](https://docs.deno.com/runtime/getting_started/installation/) and [Git](https://git-scm.com/downloads). Create your own repository from this template, clone it, open a terminal in that folder, and run `deno task setup` once. Run `deno task dev` and open the local URL printed in the terminal (normally `http://localhost:3000`). Arrow keys move. Add `?seed=7` to the URL for another world. Open the repository folder itself in VS Code, not a parent folder, and accept the recommended Deno extension. If Phaser still shows errors or `any` after `deno task setup`, type or save in that file once.
 
@@ -78,15 +85,6 @@ Read the first failing command in the output, fix what it reports, and rerun `de
 ## Credits
 
 Tooling adapted from the [CMPM 121 Fall 2026 D2 starter](https://github.com/ucsc-cmpm-121-f26/d2-starter), with the Phaser setup following the instructor's E4 starter. Those repositories have no explicit repository license; no new license is assigned to that material. The D3 scaffold was instructor-directed and authored with Anthropic Claude agent assistance. Dependencies retain their respective licenses.
-
-## Yiting's work:
-
-Crafting - System build on a materials registry, recipes table and per-terrain drop tables so that adding materials or recipe is one table entry
-Cave rules - Caves over 20 cells need a latern, and smaller one needs torch
-Day and night - day and night cycles, each last one minute, at night you only see your own cells, which is a 7x7 squares with a torch. In cave, everything outside cave goes dark
-HUD: inventory and recipe are aligned in table, display read and not ready for different materials
-Controls: Number keys are crafting recipes
-Test: about 50 tests cover crafting, fishing (didn't implement), caves and day/night cycle
 
 ## Review bot
 
